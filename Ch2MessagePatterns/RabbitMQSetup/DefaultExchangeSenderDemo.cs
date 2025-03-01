@@ -9,12 +9,20 @@ namespace RabbitMQSetup
 {
   public class DefaultExchangeSenderDemo
   {
-    public static async void sendToDefaultExchange()
+    public static void sendToDefaultExchange()
     {
-      Sender sender = new Sender();
-      await sender.initialize();
-      sender.send("Test message");
-      sender.destroy();
+      try
+      {
+        Sender sender = new Sender();
+        sender.Initialize();
+        sender.Send("Test message");
+        sender.Destroy();
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine(ex.ToString());
+      }
+
     }
 
     public static void main(string[] args)

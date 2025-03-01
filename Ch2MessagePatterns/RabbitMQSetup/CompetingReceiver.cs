@@ -4,20 +4,24 @@ using RabbitMQ.Client;
 using RabbitMQ;
 using RabbitMQ.Client.Events;
 using System.Text;
+using Polly.Retry;
+using RabbitMQ.Client.Exceptions;
+using System.Net.Sockets;
+using Polly;
 
 namespace RabbitMQSetup
 {
   public class CompetingReceiver
   {
-    private string QUEUE_NAME = "event_queue";
-    private string HOST_NAME = "";
-    private int HOST_PORT = 0;
+    private const string QUEUE_NAME = "event_queue";
+    private const string HOST_NAME = "localhost";
+    private const int HOST_PORT = 5672;
 
-    private readonly ILogger<CompetingReceiver> _logger = null!;
-    private readonly IConfiguration _configuration = null!;
+    private readonly ILogger<CompetingReceiver> _logger;
+    private readonly IConfiguration _configuration;
 
-    private IConnection? _connection;
-    private IChannel? _channel;
+    private IConnection _connection;
+    private IModel? _channel;
 
     public CompetingReceiver() { }
 
@@ -27,46 +31,60 @@ namespace RabbitMQSetup
       _configuration = configuration;
     }
 
-    public async void initialize()
+    public bool Initialize()
     {
       try
       {
-        ConnectionFactory factory = new ConnectionFactory()
+        var factory = new ConnectionFactory()
         {
-          HostName = "localhost",
-          Port = 5672,
+          HostName = HOST_NAME,
+          Port = HOST_PORT,
+          UserName = "guest",
+          Password = "guest",
+          VirtualHost = "/",
+          AutomaticRecoveryEnabled = true
         };
-        _connection = await factory.CreateConnectionAsync();
-        _channel = await _connection.CreateChannelAsync();
+        _connection = RetryPolicy.Handle<BrokerUnreachableException>()
+                                 .Or<SocketException>()
+                                 .WaitAndRetry(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)))
+                                 .Execute(() => factory.CreateConnection());
+        _channel = _connection.CreateModel();
+        if (_connection == null || _channel == null)
+        {
+          Console.WriteLine("[!] For some odd reason unable to create a connections or channels.");
+          return false;
+        }
+        Console.WriteLine("[x] Initialized connection to RabbitMQ");
+        return true;
       }
       catch (System.Exception ex)
       {
-        Console.WriteLine(ex.ToString());
+        Console.WriteLine("[!] While initialization error out: " + ex.ToString());
+        return false;
       }
     }
 
-    public async Task<string> receive()
+    public string Receive()
     {
-      if (_channel == null) initialize();
+      if (_channel == null) Initialize();
 
       string message = string.Empty;
 
       try
       {
-        await _channel!.QueueDeclareAsync(QUEUE_NAME, false, false, false, null);
+        _channel!.QueueDeclare(queue: QUEUE_NAME, durable: false, exclusive: false, autoDelete: false, arguments: null);
 
         Console.WriteLine("[*] Waiting for messages: ");
 
-        AsyncEventingBasicConsumer? consumer = new AsyncEventingBasicConsumer(_channel);
-       
+        var consumer = new EventingBasicConsumer(_channel);
+
         if (consumer != null)
         {
-          consumer.ReceivedAsync += (model, ea) =>
+          consumer.Received += (model, ea) =>
           {
             var body = ea.Body.ToArray();
             message = Encoding.UTF8.GetString(body);
             Console.WriteLine($"[x] Received {message}");
-            return Task.CompletedTask;
           };
         }
       }
@@ -82,13 +100,13 @@ namespace RabbitMQSetup
       return message;
     }
 
-    public void destroy()
+    public void Destory()
     {
       try
       {
-        if ( _connection != null)
+        if (_connection != null)
         {
-          _connection.CloseAsync();
+          _connection.Close();
           _connection.Dispose();
         }
       }

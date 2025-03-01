@@ -1,111 +1,136 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Retry;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
+using System.Data.Common;
+using System.Net.Sockets;
 using System.Text;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 
-namespace RabbitMQ;
-
-public class Sender {
-  private string QUEUE_NAME = "event_queue";
-  private string DEFAULT_EXCHANGE = "";
-  private string HOST_NAME = "";
-  private int HOST_PORT = 0;
-
-  private readonly ILogger<Sender> _logger = null!;
-  private readonly IConfiguration _configuration = null!;
-
-  private IConnection _connection;
-  private IChannel _channel;
-
-  public Sender(){}
-
-  public Sender(ILogger<Sender> logger, IConfiguration configuration) {
-    _logger = logger;
-    _configuration = configuration;
-  }
-
-  public async Task<bool> initialize()
+namespace RabbitMQ
+{
+  public class Sender
   {
-    try
-    {
-      ConnectionFactory factory = new ConnectionFactory() {
-        HostName = "localhost",
-        Port = 5672,
-      };
-      _connection = await factory.CreateConnectionAsync();
-      _channel = await _connection.CreateChannelAsync();
-      Console.WriteLine("[x] Initalized connection to RabbitMQ");
-      return true;
-    }
-    catch (System.Exception ex)
-    {
-      Console.WriteLine(ex.ToString());
-      return false;
-    }
-  }
+    private const string QUEUE_NAME = "event_queue";
+    private const string DEFAULT_EXCHANGE = "";
+    private const string HOST_NAME = "localhost";
+    private const int HOST_PORT = 5672;
 
-  /// <summary>
-  /// Appropriate for Point-to-Point type of communication
-  /// </summary>
-  /// <param name="message"></param>
-  public async void send(string message){
-    try
-    {
-      byte[] body = Encoding.UTF8.GetBytes(message);
-      if (_channel == null) Console.WriteLine("[!] Channel connection is not setup");
-      await _channel!.QueueDeclareAsync(queue: QUEUE_NAME, durable: false, exclusive: false, autoDelete: false, arguments: null);
-      await _channel!.BasicPublishAsync(exchange: DEFAULT_EXCHANGE, routingKey: QUEUE_NAME, body: body);
-    }
-    catch (Exception ex)
-    {
-      Console.WriteLine(ex.ToString());
-    }
-  }
+    private readonly ILogger<Sender> _logger;
+    private readonly IConfiguration _configuration;
 
+    private IConnection _connection;
+    private IModel _channel;
 
-  /// <summary>
-  /// Appropriate for Publish-Subscriber type of communcation 
-  /// </summary>
-  /// <param name="exchange"></param>
-  /// <param name="type"></param>
-  /// <param name="message"></param>
-  public async void send(string exchange, string type, string message)
-  {
-    try
-    {
-      byte[] body = Encoding.UTF8.GetBytes(message);
-      await _channel!.ExchangeDeclareAsync(exchange: exchange, type: type);
-      await _channel!.BasicPublishAsync(exchange: exchange, routingKey: "", body: body);
-    }
-    catch (Exception ex)
-    {
-      Console.WriteLine(ex.ToString());
-    }
-  }
+    public Sender() { }
 
-  /// <summary>
-  /// Close the connection and all channels to the message broker
-  /// </summary>
-  public void destroy()
-  {
-    try
+    public Sender(ILogger<Sender> logger, IConfiguration configuration)
     {
-      if (_channel != null 
-        && _connection != null
-        && _channel.IsOpen)
+      _logger = logger;
+      _configuration = configuration;
+    }
+
+    public bool Initialize()
+    {
+      try
       {
-        _channel.CloseAsync();
-        _channel.Dispose();
-        _connection.CloseAsync();
-        _connection.Dispose();
+        var factory = new ConnectionFactory()
+        {
+          HostName = HOST_NAME,
+          Port = HOST_PORT,
+          UserName = "guest",
+          Password = "guest",
+          VirtualHost = "/",
+          AutomaticRecoveryEnabled = true
+        };
+        _connection = RetryPolicy.Handle<BrokerUnreachableException>()
+                                 .Or<SocketException>()
+                                 .WaitAndRetry(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)))
+                                 .Execute(() => factory.CreateConnection());
+        _channel = _connection.CreateModel();
+        if (_connection == null || _channel == null)
+        {
+          Console.WriteLine("[!] For some odd reason unable to create a connections or channels.");
+          return false;
+        }
+        Console.WriteLine("[x] Initialized connection to RabbitMQ");
+        return true;
+      }
+      catch (System.Exception ex)
+      {
+        Console.WriteLine("[!] While initialization error out: " + ex.ToString());
+        return false;
       }
     }
-    catch (Exception ex)
+
+    /// <summary>
+    /// Appropriate for Point-to-Point type of communication
+    /// </summary>
+    /// <param name="message"></param>
+    public bool Send(string message)
     {
-      Console.WriteLine(ex.ToString());
+      try
+      {
+        Console.WriteLine($"Sending Message ---> {message}");
+        byte[] body = Encoding.UTF8.GetBytes(message);
+        _channel.QueueDeclare(queue: QUEUE_NAME, durable: false, exclusive: false, autoDelete: false, arguments: null);
+        _channel.BasicPublish(exchange: DEFAULT_EXCHANGE, routingKey: QUEUE_NAME, basicProperties: null, body: body);
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine(ex.ToString());
+        return false;
+      }
+      return true;
+    }
+
+    /// <summary>
+    /// Appropriate for Publish-Subscriber type of communication 
+    /// </summary>
+    /// <param name="exchange"></param>
+    /// <param name="type"></param>
+    /// <param name="message"></param>
+    public bool Send(string exchange, string type, string message)
+    {
+      try
+      {
+        Console.WriteLine($"Sending Message ---> {message}");
+        byte[] body = Encoding.UTF8.GetBytes(message);
+        _channel.ExchangeDeclare(exchange: exchange, type: type);
+        _channel.BasicPublish(exchange: exchange, routingKey: "", basicProperties: null, body: body);
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine(ex.ToString());
+        return false;
+      }
+      return true;
+    }
+
+    /// <summary>
+    /// Close the connection and all channels to the message broker
+    /// </summary>
+    public void Destroy()
+    {
+      try
+      {
+        if (_connection != null 
+          && _channel != null
+          && _channel.IsOpen)
+        {
+          _channel.Close();
+          _channel.Dispose();
+          _connection.Close();
+          _connection.Dispose();
+        }
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine(ex.ToString());
+      }
     }
   }
-
-
-
 }
