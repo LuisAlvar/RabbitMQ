@@ -11,6 +11,9 @@ using Polly;
 
 namespace RabbitMQSetup
 {
+  /// <summary>
+  /// Example of Point-to-Point Communcation 
+  /// </summary>
   public class CompetingReceiver
   {
     private const string QUEUE_NAME = "event_queue";
@@ -23,12 +26,17 @@ namespace RabbitMQSetup
     private IConnection _connection;
     private IModel? _channel;
 
-    public CompetingReceiver() { }
+    private readonly string _id;
+
+    public CompetingReceiver(string id) {
+      _id = id;
+    }
 
     public CompetingReceiver(ILogger<CompetingReceiver> logger, IConfiguration configuration)
     {
       _logger = logger;
       _configuration = configuration;
+      _id = Guid.NewGuid().ToString();
     }
 
     public bool Initialize()
@@ -64,40 +72,54 @@ namespace RabbitMQSetup
       }
     }
 
-    public string Receive()
+    /// <summary>
+    /// This function is only meant to working with await CompetingReceiverDemo.MainFCFS(args);
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<string> Receive(CancellationToken cancellationToken)
     {
       if (_channel == null) Initialize();
-
-      string message = string.Empty;
 
       try
       {
         _channel!.QueueDeclare(queue: QUEUE_NAME, durable: false, exclusive: false, autoDelete: false, arguments: null);
-
-        Console.WriteLine("[*] Waiting for messages: ");
+        Console.WriteLine($"[*] {_id} waiting for messages ...");
 
         var consumer = new EventingBasicConsumer(_channel);
+        var tcs = new TaskCompletionSource<string>();
 
-        if (consumer != null)
+        consumer.Received += (model, ea) =>
         {
-          consumer.Received += (model, ea) =>
-          {
-            var body = ea.Body.ToArray();
-            message = Encoding.UTF8.GetString(body);
-            Console.WriteLine($"[x] Received {message}");
-          };
+          var body = ea.Body.ToArray();
+          var message = Encoding.UTF8.GetString(body);
+          Console.WriteLine($"[x] {_id} received {message}");
+          tcs.SetResult($"[{_id}]: {message}");
+        };
+
+        _channel.BasicConsume(queue: QUEUE_NAME, autoAck: true, consumer: consumer);
+
+        using (cancellationToken.Register(() => tcs.SetCanceled()))
+        {
+          return await tcs.Task;
         }
+      }
+      catch (TaskCanceledException)
+      {
+        return $"{_id}: Task canceled.";
       }
       catch (IOException ex)
       {
-        Console.WriteLine(ex.Message);
+        return $"[Error in {_id}]: {ex.Message}";
       }
       catch (RabbitMQ.Client.Exceptions.OperationInterruptedException ex)
       {
-        Console.WriteLine(ex.Message);
+        return $"[Error in {_id}]: {ex.Message}";
       }
-
-      return message;
+      catch (Exception ex)
+      {
+        return $"[Error in {_id}]: {ex.Message}";
+      }
     }
 
     public void Destory()
@@ -106,8 +128,11 @@ namespace RabbitMQSetup
       {
         if (_connection != null)
         {
+          _channel?.Close();
+          _channel?.Dispose();
           _connection.Close();
           _connection.Dispose();
+          Console.WriteLine($"[x] {_id} closed the connection.");
         }
       }
       catch (Exception ex)
