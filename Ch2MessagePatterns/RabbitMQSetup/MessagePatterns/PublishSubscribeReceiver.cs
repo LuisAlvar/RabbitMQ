@@ -73,42 +73,44 @@ public class PublishSubscribeReceiver
     }
   }
 
-  public string Receive(string queue)
+  public Task<string> Receive(string queue)
   {
     if (_channel == null) Initialize();
-    string message = string.Empty;
     try
     {
+      Console.WriteLine($"[{_id}] waiting for messages ....");
       _channel!.ExchangeDeclare(exchange: EXCHANGE_NAME, type: "fanout");
       _channel!.QueueDeclare(queue: queue, durable: false, exclusive: false, autoDelete: false, arguments: null);
       _channel.QueueBind(queue: queue, exchange: EXCHANGE_NAME, routingKey: " ");
 
       EventingBasicConsumer consumer = new EventingBasicConsumer(_channel);
+      TaskCompletionSource<string> tcs = new TaskCompletionSource<string>();
+
       consumer.Received += (sender, args) =>
       {
-          var body = args.Body.ToArray();
-          var message = Encoding.UTF8.GetString(body);
-          Console.WriteLine($"[x] {_id} received {message}");
+        var body = args.Body.ToArray();
+        var message = Encoding.UTF8.GetString(body);
+        Console.WriteLine($"[x] {_id} received {message}");
+        tcs.SetResult($"[{_id}]:  {message}");
       };
       _channel.BasicConsume(queue: queue, autoAck: true, consumer: consumer);
+      return tcs.Task;
     }
     catch (IOException ex)
     {
-      return $"[Error in {_id}]: {ex.Message}";
+      return Task.FromResult($"[Error in {_id}]: {ex.Message}");
     }
     catch (OperationInterruptedException ex)
     {
-      return $"[Error in {_id}]: {ex.Message}";
+      return Task.FromResult($"[Error in {_id}]: {ex.Message}");
     }
     catch (Exception ex)
     {
-      return $"[Error in {_id}]: {ex.Message}";
+      return Task.FromResult($"[Error in {_id}]: {ex.Message}");
     }
-
-    return message;
   }
 
-  public void Destory()
+  public void Destroy()
   {
     try
     {
