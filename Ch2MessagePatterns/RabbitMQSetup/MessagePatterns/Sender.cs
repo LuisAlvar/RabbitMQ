@@ -156,7 +156,7 @@ public class Sender
 
     try
     {
-      _channel.BasicConsume(queue: RESPONSE_QUEUE, autoAck: false, consumer);
+      _channel.BasicConsume(queue: RESPONSE_QUEUE, autoAck: true, consumer: consumer);
       consumer.Received += (model, ea) =>
       {
         var body = ea.Body.ToArray();
@@ -171,11 +171,11 @@ public class Sender
           }
           else
           {
-            Console.WriteLine($"Message received: {message}");
             result = message;
           }
         }
       };
+      Console.WriteLine($"Message received: {result}");
     }
     catch (IOException ex)
     {
