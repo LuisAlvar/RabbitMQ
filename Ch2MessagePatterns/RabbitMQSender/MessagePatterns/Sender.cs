@@ -12,7 +12,7 @@ using System.Text;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-namespace RabbitMQSetup.MessagePatterns;
+namespace RabbitMQSender.MessagePatterns;
 
 public class Sender
 {
@@ -230,4 +230,5 @@ public class Sender
     }
   }
 }
+
 

@@ -13,6 +13,9 @@ using System.Threading.Tasks;
 
 namespace RabbitMQSetup.MessagePatterns;
 
+/// <summary>
+/// The request receiver is a subscriber to the request queue
+/// </summary>
 public class RequestReceiver
 {
   private const string DEFAULT_QUEUE = "";
@@ -74,6 +77,15 @@ public class RequestReceiver
     }
   }
 
+  /// <summary>
+  /// After a request message is received, the request receiver retrieves the value of the replyTo property from 
+  /// the message header, creates a response message, and sends it to the default exchange with a routing key that 
+  /// matches the replyTo property.
+  /// <br/>
+  /// This means that the replyTo property points to a queue that handles response messages and the sender is 
+  /// subscribed to that queue in order to received a response. 
+  /// 
+  /// </summary>
   public void Receive()
   {
     if (_channel == null) Initialize();
@@ -82,29 +94,33 @@ public class RequestReceiver
     {
       _channel!.QueueDeclare(queue: REQUEST_QUEUE, durable: false, exclusive: false, autoDelete: false, arguments: null);
       EventingBasicConsumer consumer = new EventingBasicConsumer(_channel);
+      _channel.BasicConsume(queue: REQUEST_QUEUE, autoAck: true, consumer: consumer);
+
+      Console.WriteLine($"[x] {_id} waiting on message from {REQUEST_QUEUE}");
+
       consumer.Received += (model, ea) =>
       {
         var body = ea.Body.ToArray();
         message = Encoding.UTF8.GetString(body);
-        Console.WriteLine($"[x] {_id} received {message}");
+        Console.WriteLine($"[x] {_id} received \"{message}\"");
+
+        // do something with the request message ...
 
         var props = ea.BasicProperties;
         if (props != null)
         {
-          var replyProps = _channel.CreateBasicProperties();
-          replyProps.CorrelationId = props.CorrelationId;
+          var amqpProps = _channel.CreateBasicProperties();
+          amqpProps.CorrelationId = props.CorrelationId;
 
           var responseMessage = Encoding.UTF8.GetBytes("Response message.");
-          _channel.BasicPublish(exchange: "", routingKey: props.ReplyTo, basicProperties: replyProps, body: responseMessage);
+          _channel.BasicPublish(exchange: DEFAULT_QUEUE, routingKey: props.ReplyTo, basicProperties: amqpProps, body: responseMessage);
+          Console.WriteLine($"[x] {_id} sending message (Response message.) to default queue and {props.ReplyTo}");
         }
         else
         {
           Console.WriteLine("Cannot determine response destination for message.");
         }
       };
-
-      _channel.BasicConsume(queue: REQUEST_QUEUE, autoAck: true, consumer: consumer);
-
     }
     catch (IOException ex)
     {
