@@ -9,10 +9,10 @@ using RabbitMQ.Client.Exceptions;
 using System.Net.Sockets;
 using Polly;
 
-namespace RabbitMQSetup.MessagePatterns;
+namespace RabbitMQMessagePatterns.PointToPoint;
 
 /// <summary>
-/// Example of Point-to-Point Communcation 
+/// Used to subscirbe to a particular queue and receive messages from that queue. 
 /// </summary>
 public class CompetingReceiver
 {
@@ -74,22 +74,31 @@ public class CompetingReceiver
   }
 
   /// <summary>
-  /// This function is only meant to working with await CompetingReceiverDemo.MainFCFS(args);
+  /// Used to receive a message from the queue named event_queue
   /// </summary>
   /// <param name="cancellationToken"></param>
   /// <returns></returns>
   public async Task<string> Receive(CancellationToken cancellationToken)
   {
+    // _channel instance that represents the AMQP channel to the message broker.
     if (_channel == null) Initialize();
 
     try
     {
+      // Creating the event_queue in the message broker, if not already created using QueueDeclare
       _channel!.QueueDeclare(queue: QUEUE_NAME, durable: false, exclusive: false, autoDelete: false, arguments: null);
       Console.WriteLine($"[*] {_id} waiting for messages ...");
 
-      var consumer = new EventingBasicConsumer(_channel);
+      // Creating a instance that is used as the handler for messages from the event_queue queue
+      var consumer = new EventingBasicConsumer(_channel); 
+
+      // Given that we dont know when we will receive the data and we are using Tasks
+      // Then we want the Task running this to wait for that data. 
       var tcs = new TaskCompletionSource<string>();
 
+      // EventHandler declared here as oppose to creating a EventHandler type function
+      // We are telling the EventingBasicConsumer instance that any time RabbitMQ detect a message for us;
+      // please execute the following logic.
       consumer.Received += (model, ea) =>
       {
         var body = ea.Body.ToArray();
@@ -98,8 +107,12 @@ public class CompetingReceiver
         tcs.SetResult($"[{_id}]: {message}");
       };
 
+      // Registering the EventingBasicConsumer as a message consumer using the BasicConsume method
+      // of the _channel instance that represents the AMQP channel to the message broker. 
       _channel.BasicConsume(queue: QUEUE_NAME, autoAck: true, consumer: consumer);
 
+      // If other Task has received the message, then we will cancel the wait on the data within this Task
+      // we will return 
       using (cancellationToken.Register(() => tcs.SetCanceled()))
       {
         return await tcs.Task;
@@ -123,6 +136,11 @@ public class CompetingReceiver
     }
   }
 
+
+  /// <summary>
+  /// Used to close the AMQP connection and must be called explicitly when needed; closing the
+  /// connection closes all AMQP channels created in that connection:
+  /// </summary>
   public void Destory()
   {
     try
@@ -141,5 +159,7 @@ public class CompetingReceiver
       Console.WriteLine(ex.ToString());
     }
   }
+
+
 
 }

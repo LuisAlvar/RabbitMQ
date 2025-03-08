@@ -12,15 +12,22 @@ using System.Text;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-namespace RabbitMQSender.MessagePatterns;
+namespace RabbitMQMessagePatterns;
 
 public class Sender
 {
+  /// <summary>
+  /// Point-to-Point Queue, Use with Default_Exchange For CompetingReceiver
+  /// </summary>
   private const string QUEUE_NAME = "event_queue";
   private const string DEFAULT_EXCHANGE = "";
 
   private const string REQUEST_QUEUE = "request_queue";
   private const string RESPONSE_QUEUE = "response_queue";
+
+  private const string SEMINAR_QUEUE = "seminar_queue";
+  private const string HACKATON_QUEUE = "hackaton_queue";
+  private const string TOPIC_EXCHANGE = "topic_exchange";
 
   private const string HOST_NAME = "localhost";
   private const int HOST_PORT = 5672;
@@ -43,6 +50,9 @@ public class Sender
   {
     try
     {
+      // Creating a ConnectionFactory that is used to create AMQP connections to 
+      // a running RabbitMQ server instance; in this case, this is an instance running on 
+      // localhost and accepting connections on the default port (5672)
       var factory = new ConnectionFactory()
       {
         HostName = HOST_NAME,
@@ -52,10 +62,15 @@ public class Sender
         VirtualHost = "/",
         AutomaticRecoveryEnabled = true
       };
+
+      // Creating a new connection using the connection factory 
+      // Using Polly to retry 5 times trying to establish a connection
       _connection = Policy.Handle<BrokerUnreachableException>()
                                .Or<SocketException>()
                                .WaitAndRetry(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)))
                                .Execute(() => factory.CreateConnection());
+
+      // Creating a new channel for sending messages in the created connection
       _channel = _connection.CreateModel();
       if (_connection == null || _channel == null)
       {
@@ -74,6 +89,8 @@ public class Sender
 
   /// <summary>
   /// Appropriate for Point-to-Point type of communication
+  /// <br />
+  /// Use to accepts a message and sends it to the default queue
   /// </summary>
   /// <param name="message"></param>
   public bool Send(string message)
@@ -82,7 +99,12 @@ public class Sender
     {
       Console.WriteLine($"[S-->] Sending Message ---> {message}");
       byte[] body = Encoding.UTF8.GetBytes(message);
+
+      // Declares a queue in the message broker using this method; if the queue is already created
+      // then it is not recreated by the method.
       _channel.QueueDeclare(queue: QUEUE_NAME, durable: false, exclusive: false, autoDelete: false, arguments: null);
+      
+      // Publishes a message on the default exchange that is delivered to that queue
       _channel.BasicPublish(exchange: DEFAULT_EXCHANGE, routingKey: QUEUE_NAME, basicProperties: null, body: body);
     }
     catch (Exception ex)
@@ -105,7 +127,13 @@ public class Sender
     {
       Console.WriteLine($"[S-->] Sending Message ---> {message}");
       byte[] body = Encoding.UTF8.GetBytes(message);
+
+      // Declares the specified exchange along with its type on the message bus using this method;
+      // the exchange is not recreated if it exists on the message bus. 
       _channel.ExchangeDeclare(exchange: exchange, type: type);
+
+      // Sends a message to this exchange with a routing key equal to string.empty
+      // (indicating that we will not use the the routing key)
       _channel.BasicPublish(exchange: exchange, routingKey: "", basicProperties: null, body: body);
     }
     catch (Exception ex)
@@ -204,10 +232,39 @@ public class Sender
       return Task.FromResult($"Error: {e.Message}");
     }
   }
+  
+  /// <summary>
+  /// Message router type of communication
+  /// </summary>
+  /// <param name="exchange"></param>
+  /// <param name="message"></param>
+  /// <param name="messageKey"></param>
+  public void SendEvent(string exchange, string message, string messageKey)
+  {
+    try
+    {
 
+      var body = Encoding.UTF8.GetBytes(message);
+
+      _channel.ExchangeDeclare(exchange: exchange, type: "topic", durable: false, autoDelete: false, arguments: null);
+      _channel.QueueDeclare(queue: SEMINAR_QUEUE, durable: false, exclusive: false, autoDelete: false, arguments: null);
+      _channel.QueueDeclare(queue: HACKATON_QUEUE, durable: false, exclusive: false, autoDelete: false, arguments: null);
+
+      _channel.QueueBind(queue: SEMINAR_QUEUE, exchange: TOPIC_EXCHANGE, routingKey: "seminar.#", arguments: null);
+      _channel.QueueBind(queue: HACKATON_QUEUE, exchange: TOPIC_EXCHANGE, routingKey: "hackaton.#", arguments: null);
+
+      _channel.BasicPublish(exchange: TOPIC_EXCHANGE, routingKey: messageKey, basicProperties: null, body: body);
+
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine(ex.ToString());
+    }
+  }
 
   /// <summary>
-  /// Close the connection and all channels to the message broker
+  /// Used to close the AMQP connection and must be called explicitly when needed; closing the
+  /// connection closes all AMQP channels created in that connection. 
   /// </summary>
   public void Destroy()
   {
@@ -230,5 +287,4 @@ public class Sender
     }
   }
 }
-
 

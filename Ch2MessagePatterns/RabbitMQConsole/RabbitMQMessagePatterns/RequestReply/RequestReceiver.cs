@@ -11,7 +11,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RabbitMQSetup.MessagePatterns;
+namespace RabbitMQMessagePatterns.RequestReply;
 
 /// <summary>
 /// The request receiver is a subscriber to the request queue

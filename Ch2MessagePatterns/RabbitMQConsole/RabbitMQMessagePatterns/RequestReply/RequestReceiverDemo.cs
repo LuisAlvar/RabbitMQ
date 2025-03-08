@@ -1,11 +1,6 @@
-﻿using RabbitMQSetup.MessagePatterns;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
 
-namespace RabbitMQSetup.Demo;
+namespace RabbitMQMessagePatterns.RequestReply;
 public class RequestReceiverDemo
 {
   public static void Main(string[] args)

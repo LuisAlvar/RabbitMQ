@@ -1,8 +1,5 @@
-﻿using System;
-using System.Threading.Tasks;
-using RabbitMQSetup.MessagePatterns;
-
-namespace RabbitMQSetup.Demo;
+﻿
+namespace RabbitMQMessagePatterns.PointToPoint;
 
 /// <summary>
 /// Point-to-Point type of communcation

@@ -1,6 +1,8 @@
-﻿// See https://aka.ms/new-console-template for more information
-using RabbitMQSetup.Demo;
-Console.WriteLine("RabbitMQSetup");
+﻿using RabbitMQMessagePatterns.PointToPoint;
+using RabbitMQMessagePatterns.PublishSubscribe;
+using RabbitMQMessagePatterns.RequestReply;
+
+Console.WriteLine("RabbitMQConsole .... ");
 
 #region Point-to-Point 
 //DefaultExchangeSenderDemo.Main(args);
@@ -18,6 +20,10 @@ Console.WriteLine("RabbitMQSetup");
 //PublishSubscribeReceiverDemo.Main(args);
 #endregion
 
-RequestReceiverDemo.Main(args);
 
+#region RequestReply
+//RequestReceiverDemo.Main(args);
+#endregion
 
+Console.Write("Enter any key to exist. ");
+Console.ReadKey();
