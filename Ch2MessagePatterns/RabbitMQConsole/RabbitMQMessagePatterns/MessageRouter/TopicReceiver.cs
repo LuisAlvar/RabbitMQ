@@ -87,7 +87,7 @@ namespace RabbitMQMessagePatterns.MessageRouter
     }
 
     /// <summary>
-    /// 
+    /// Use to consume the message of the corresponding queue
     /// </summary>
     /// <param name="queue"></param>
     /// <returns></returns>

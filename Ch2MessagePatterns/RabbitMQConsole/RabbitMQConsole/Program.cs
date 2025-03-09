@@ -16,7 +16,6 @@ Console.WriteLine("RabbitMQConsole .... ");
 //PublishSubscribeReceiverDemo.Main(args);
 #endregion
 
-
 #region RequestReply Communication
 //RequestReceiverDemo.Main(args);
 #endregion

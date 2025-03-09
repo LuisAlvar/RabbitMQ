@@ -17,17 +17,24 @@ namespace RabbitMQMessagePatterns;
 public class Sender
 {
   /// <summary>
-  /// Point-to-Point Queue, Use with Default_Exchange For CompetingReceiver
+  /// Used for either PointToPoint and RequestReply
   /// </summary>
-  private const string QUEUE_NAME = "event_queue";
   private const string DEFAULT_EXCHANGE = "";
 
+  #region PointToPoint Properties
+  private const string QUEUE_NAME = "event_queue";
+  #endregion 
+
+  #region PublishSubscribe Properites
   private const string REQUEST_QUEUE = "request_queue";
   private const string RESPONSE_QUEUE = "response_queue";
+  #endregion
 
+  #region MessageRouter Properties
   private const string SEMINAR_QUEUE = "seminar_queue";
   private const string HACKATON_QUEUE = "hackaton_queue";
   private const string TOPIC_EXCHANGE = "topic_exchange";
+  #endregion
 
   private const string HOST_NAME = "localhost";
   private const int HOST_PORT = 5672;
