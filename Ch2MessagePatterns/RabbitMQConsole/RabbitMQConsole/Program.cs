@@ -11,13 +11,13 @@ Console.WriteLine("RabbitMQConsole .... ");
 //await CompetingReceiverDemo.MainFCFS(args);
 #endregion
 
-#region pub-sub communication
+#region PublishSubscribe Communication
 //PublishSubscribeReceiverDemo.Main(args);
 #endregion
 
 
-#region RequestReply
-//RequestReceiverDemo.Main(args);
+#region RequestReply Communication
+RequestReceiverDemo.Main(args);
 #endregion
 
 Console.Write("Enter any key to exist. ");

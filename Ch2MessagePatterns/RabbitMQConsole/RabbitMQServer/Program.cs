@@ -13,8 +13,7 @@ Console.WriteLine("RabbitMQServer (i.e., Sender) .... ");
 #endregion
 
 #region RequestReply Communication
-//Task.Delay(4000).Wait(); 
-//RequestSenderDemo.Main(args);
+RequestSenderDemo.Main(args);
 #endregion
 
 Console.Write("Enter any key to exist. ");

@@ -172,6 +172,11 @@ public class Sender
       _channel.QueueDeclare(queue: REQUEST_QUEUE, durable: false, exclusive: false, autoDelete: false, arguments: null);
       _channel.QueueDeclare(queue: RESPONSE_QUEUE, durable: false, exclusive: false, autoDelete: false, arguments: null);
 
+      // It takes some time to create this exchange and queue and binding the first time around. 
+      Console.Write($"[S-->] Sender waiting ... seting up queues [{REQUEST_QUEUE},{RESPONSE_QUEUE}] with default exchange ... ");
+      Task.Delay(4000).Wait();
+      Console.WriteLine("Done");
+
       var properties = _channel.CreateBasicProperties();
       properties.CorrelationId = correlationId.ToString();
       properties.ReplyTo = RESPONSE_QUEUE;
@@ -188,11 +193,11 @@ public class Sender
   }
 
   /// <summary>
-  /// 
+  /// Used to as a way to ack that receiver received its request. This completes the roundtrip.
   /// </summary>
   /// <param name="correlationId"></param>
   /// <returns></returns>
-  public Task<string> WaitForResponse(string correlationId)
+  public async Task<string> WaitForResponse(string correlationId)
   {
     var tcs = new TaskCompletionSource<string>();
 
@@ -201,14 +206,12 @@ public class Sender
       var consumer = new EventingBasicConsumer(_channel);
       _channel.BasicConsume(queue: RESPONSE_QUEUE, autoAck: false, consumer: consumer);
 
-      Console.WriteLine($"[S-->] waiting on message from {RESPONSE_QUEUE}");
-
       consumer.Received += (model, ea) => {
         var body = ea.Body.ToArray();
         var message = Encoding.UTF8.GetString(body);
         var props = ea.BasicProperties;
 
-        Console.WriteLine($"[S-->] receiving the following messsage: {message}");
+        Console.WriteLine($"[S<--] receiving the following messsage: {message} from queue [{RESPONSE_QUEUE}]");
 
         if (props != null)
         {
@@ -216,28 +219,33 @@ public class Sender
 
           if (!correlationId.Equals(msgCorrelationId))
           {
-            Console.WriteLine("[S-->] Received response of another request.");
+            Console.WriteLine("[S<--] Received response of another request.");
           }
           else
           {
+            Console.WriteLine("[S<--] Acquired data flag Tasks that we have messsage");
             tcs.SetResult(message);
             _channel.BasicAck(ea.DeliveryTag, false);
           }
         }
       };
-      return tcs.Task;
+
+      Console.WriteLine($"[S<--] waiting on message from {RESPONSE_QUEUE} ...");
+      Task.Delay(8000).Wait();
+
+      return await tcs.Task;
     }
     catch (IOException e)
     {
-      return Task.FromResult($"Error: {e.Message}");
+      return await Task.FromResult($"Error: {e.Message}");
     }
     catch (OperationInterruptedException e)
     {
-      return Task.FromResult($"Error: {e.Message}");
+      return await Task.FromResult($"Error: {e.Message}");
     }
     catch (Exception e)
     {
-      return Task.FromResult($"Error: {e.Message}");
+      return await Task.FromResult($"Error: {e.Message}");
     }
   }
   
