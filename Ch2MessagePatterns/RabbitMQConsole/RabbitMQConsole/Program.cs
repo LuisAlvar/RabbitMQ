@@ -1,4 +1,5 @@
-﻿using RabbitMQMessagePatterns.PointToPoint;
+﻿using RabbitMQMessagePatterns.MessageRouter;
+using RabbitMQMessagePatterns.PointToPoint;
 using RabbitMQMessagePatterns.PublishSubscribe;
 using RabbitMQMessagePatterns.RequestReply;
 
@@ -17,7 +18,11 @@ Console.WriteLine("RabbitMQConsole .... ");
 
 
 #region RequestReply Communication
-RequestReceiverDemo.Main(args);
+//RequestReceiverDemo.Main(args);
+#endregion
+
+#region MessageRouter Communication 
+TopicReceiverDemo.Main(args);
 #endregion
 
 Console.Write("Enter any key to exist. ");

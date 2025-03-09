@@ -17,6 +17,11 @@ public class TopicSenderDemo
     sender.SendEvent(TOPIC_EXCHANGE, "Test message 1.", "seminar.java");
     sender.SendEvent(TOPIC_EXCHANGE, "Test message 2.", "seminar.rabbitmq");
     sender.SendEvent(TOPIC_EXCHANGE, "Test message 3.", "hackaton.rabbitmq");
+
+    Console.Write($"[S-->] Sender setting up queues with exchange [{TOPIC_EXCHANGE}] with binding ...");
+    Task.Delay(8000).Wait();
+    Console.Write("Done");
+
     sender.Destroy();
   }
 
