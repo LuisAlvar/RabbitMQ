@@ -1,21 +1,24 @@
 ﻿
 namespace RabbitMQMessagePatterns.PublishSubscribe;
 
+/// <summary>
+/// Used to send a message to the pubsub_exchange fanout exchange
+/// </summary>
 public class FanoutExchangeSenderDemo
 {
   private const string FANOUT_EXCHANGE_TYPE = "fanout";
 
-  public static void sendToFanoutExchange(String exchange)
+  public static void SendToFanoutExchange(String exchange)
   {
     Sender sender = new Sender();
     sender.Initialize();
-    sender.Send(exchange: exchange, type: FANOUT_EXCHANGE_TYPE, message: "Test message from Fanout");
+    sender.Send(exchange: exchange, type: FANOUT_EXCHANGE_TYPE, message: "Test message from fanout exchange");
     sender.Destroy();
   }
 
   public static void Main(string[] args)
   {
-    sendToFanoutExchange("pubsub_exchange");
+    SendToFanoutExchange("pubsub_exchange");
   }
 }
 

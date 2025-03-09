@@ -1,12 +1,16 @@
 ﻿using RabbitMQMessagePatterns.PointToPoint;
+using RabbitMQMessagePatterns.PublishSubscribe;
 using RabbitMQMessagePatterns.RequestReply;
 
-Console.WriteLine("RabbitMQServer .... ");
+Console.WriteLine("RabbitMQServer (i.e., Sender) .... ");
 
 #region PointToPoint Communication 
-DefaultExchangeSenderDemo.Main(args);
+//DefaultExchangeSenderDemo.Main(args);
 #endregion 
 
+#region PublishSubscribe Communication
+//FanoutExchangeSenderDemo.Main(args);
+#endregion
 
 #region RequestReply Communication
 //Task.Delay(4000).Wait(); 

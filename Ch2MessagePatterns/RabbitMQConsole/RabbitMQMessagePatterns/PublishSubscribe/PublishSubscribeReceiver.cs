@@ -14,6 +14,9 @@ using System.Threading.Tasks;
 
 namespace RabbitMQMessagePatterns.PublishSubscribe;
 
+/// <summary>
+/// Used to bind a specific queue to a fanout exchange and receive messages from it
+/// </summary>
 public class PublishSubscribeReceiver
 {
   private const string EXCHANGE_NAME = "pubsub_exchange";
@@ -40,10 +43,17 @@ public class PublishSubscribeReceiver
       _id = Guid.NewGuid().ToString();
   }
 
+  /// <summary>
+  /// Used to initialize the message sender
+  /// </summary>
+  /// <returns></returns>
   public bool Initialize()
   {
     try
     {
+      // Creating a ConnectionFactory that is used to create AMQP connections to 
+      // a running RabbitMQ server instance; in this case, this is an instance running on 
+      // localhost and accepting connections on the default port (5672)
       var factory = new ConnectionFactory()
       {
         HostName = HOST_NAME,
@@ -51,48 +61,71 @@ public class PublishSubscribeReceiver
         UserName = "guest",
         Password = "guest",
         VirtualHost = "/",
-        AutomaticRecoveryEnabled = true,
+        AutomaticRecoveryEnabled = true
       };
+
+      // Creating a new connection using the connection factory 
+      // Using Polly to retry 5 times trying to establish a connection
       _connection = Policy.Handle<BrokerUnreachableException>()
-                          .Or<SocketException>()
-                          .WaitAndRetry(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)))
-                          .Execute(() => factory.CreateConnection());
+                               .Or<SocketException>()
+                               .WaitAndRetry(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)))
+                               .Execute(() => factory.CreateConnection());
+
+      // Creating a new channel for sending messages in the created connection
       _channel = _connection.CreateModel();
       if (_connection == null || _channel == null)
       {
-        Console.WriteLine("[!] For some odd reason unable to create a connections or channels.");
+        Console.WriteLine("[R<--!] For some odd reason unable to create a connections or channels.");
         return false;
       }
-      Console.WriteLine("[x] Initialized connection to RabbitMQ");
+      Console.WriteLine("[R<--] Initialized connection to RabbitMQ");
       return true;
     }
     catch (Exception ex)
     {
-      Console.WriteLine("[!] While initialization error out: " + ex.ToString());
+      Console.WriteLine("[R<--!] While initialization error out: " + ex.ToString());
       return false;
     }
   }
 
+  /// <summary>
+  /// Used to retrieve a message froma queue that is bound to the pubsub_exchange fanout exchange
+  /// </summary>
+  /// <param name="queue"></param>
+  /// <returns></returns>
   public Task<string> Receive(string queue)
   {
     if (_channel == null) Initialize();
     try
     {
-      Console.WriteLine($"[{_id}] waiting for messages ....");
+      Console.WriteLine($"[R<--] {_id} waiting for messages ....");
+
+      // Creates the pubsub_exchagne, if not already created
       _channel!.ExchangeDeclare(exchange: EXCHANGE_NAME, type: "fanout");
+
+      // Creates the specific queue if not already created
       _channel!.QueueDeclare(queue: queue, durable: false, exclusive: false, autoDelete: false, arguments: null);
+
+      // Binds the queue to the pubsub_exchange using this method, we dont specify any particular binding key
       _channel.QueueBind(queue: queue, exchange: EXCHANGE_NAME, routingKey: " ");
+
+      // It takes some time to create this exchange and queue and binding the first time around. 
+      Console.Write($"[R<--] {_id} waiting ... seting up binding with queue [{queue}] and exchange [{EXCHANGE_NAME}] ... ");
+      Task.Delay(5000).Wait();
+      Console.WriteLine("Done");
 
       EventingBasicConsumer consumer = new EventingBasicConsumer(_channel);
       TaskCompletionSource<string> tcs = new TaskCompletionSource<string>();
-
       consumer.Received += (sender, args) =>
       {
         var body = args.Body.ToArray();
         var message = Encoding.UTF8.GetString(body);
-        Console.WriteLine($"[x] {_id} received {message}");
-        tcs.SetResult($"[{_id}]:  {message}");
+        Console.WriteLine($"[R<--] {_id} received message \"{message}\" from queue [{queue}]");
+        tcs.SetResult(message);
       };
+
+      // Registering the EventingBasicConsumer as a message consumer using the BasicConsume method
+      // of the _channel instance that represents the AMQP channel to the message broker. 
       _channel.BasicConsume(queue: queue, autoAck: true, consumer: consumer);
       return tcs.Task;
     }
@@ -110,6 +143,10 @@ public class PublishSubscribeReceiver
     }
   }
 
+  /// <summary>
+  /// Used to close the AMQP connection and must be called explicitly when needed; closing the
+  /// connection closes all AMQP channels created in that connection:
+  /// </summary>
   public void Destroy()
   {
     try
@@ -120,7 +157,7 @@ public class PublishSubscribeReceiver
         _channel?.Dispose();
         _connection.Close();
         _connection.Dispose();
-        Console.WriteLine($"[x] {_id} closed the connection.");
+        Console.WriteLine($"[R<--] {_id} closed the connection.");
       }
     }
     catch (Exception ex)

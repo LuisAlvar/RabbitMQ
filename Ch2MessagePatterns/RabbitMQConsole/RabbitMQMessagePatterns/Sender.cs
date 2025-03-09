@@ -136,6 +136,10 @@ public class Sender
       // the exchange is not recreated if it exists on the message bus. 
       _channel.ExchangeDeclare(exchange: exchange, type: type);
 
+      Console.Write($"[S-->] Sender waiting ... seting up exchange [{exchange}] of type [{type}] ... ");
+      Task.Delay(4000).Wait();
+      Console.WriteLine("Done");
+
       // Sends a message to this exchange with a routing key equal to string.empty
       // (indicating that we will not use the the routing key)
       _channel.BasicPublish(exchange: exchange, routingKey: "", basicProperties: null, body: body);

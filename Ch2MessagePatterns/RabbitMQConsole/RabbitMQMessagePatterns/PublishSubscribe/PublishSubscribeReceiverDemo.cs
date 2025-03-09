@@ -1,8 +1,16 @@
 ﻿
 namespace RabbitMQMessagePatterns.PublishSubscribe;
 
+/// <summary>
+/// Use PublishSubscribeReceiver class for the establishment of a publish-subscribe channel
+/// </summary>
 public class PublishSubscribeReceiverDemo
 {
+
+  /// <summary>
+  /// Creates two receivers that bind to two different queus: pubsub_queue1 and pubsub_queue2. 
+  /// Sender will sent a message to the pubsub_exchange, it will be delievered to both consumers.
+  /// </summary>
   public static void RunParallelTasks()
   {
     PublishSubscribeReceiver receiver1 = new PublishSubscribeReceiver("Receiver1");
@@ -31,11 +39,12 @@ public class PublishSubscribeReceiverDemo
     }
     finally
     {
-
       receiver1.Destroy();
       receiver2.Destroy();
     }
   }
+
+
   public static void Main(string[] args)
   {
     RunParallelTasks();
