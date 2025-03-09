@@ -1,10 +1,8 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
-using RabbitMQ;
 using RabbitMQ.Client.Events;
 using System.Text;
-using Polly.Retry;
 using RabbitMQ.Client.Exceptions;
 using System.Net.Sockets;
 using Polly;
@@ -40,10 +38,17 @@ public class CompetingReceiver
     _id = Guid.NewGuid().ToString();
   }
 
+  /// <summary>
+  /// Used to initialize the message sender
+  /// </summary>
+  /// <returns></returns>
   public bool Initialize()
   {
     try
     {
+      // Creating a ConnectionFactory that is used to create AMQP connections to 
+      // a running RabbitMQ server instance; in this case, this is an instance running on 
+      // localhost and accepting connections on the default port (5672)
       var factory = new ConnectionFactory()
       {
         HostName = HOST_NAME,
@@ -53,22 +58,27 @@ public class CompetingReceiver
         VirtualHost = "/",
         AutomaticRecoveryEnabled = true
       };
+
+      // Creating a new connection using the connection factory 
+      // Using Polly to retry 5 times trying to establish a connection
       _connection = Policy.Handle<BrokerUnreachableException>()
                                .Or<SocketException>()
                                .WaitAndRetry(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)))
                                .Execute(() => factory.CreateConnection());
+
+      // Creating a new channel for sending messages in the created connection
       _channel = _connection.CreateModel();
       if (_connection == null || _channel == null)
       {
-        Console.WriteLine("[!] For some odd reason unable to create a connections or channels.");
+        Console.WriteLine("[R<--!] For some odd reason unable to create a connections or channels.");
         return false;
       }
-      Console.WriteLine("[x] Initialized connection to RabbitMQ");
+      Console.WriteLine("[R<--] Initialized connection to RabbitMQ");
       return true;
     }
     catch (Exception ex)
     {
-      Console.WriteLine("[!] While initialization error out: " + ex.ToString());
+      Console.WriteLine("[R<--!] While initialization error out: " + ex.ToString());
       return false;
     }
   }
@@ -87,7 +97,7 @@ public class CompetingReceiver
     {
       // Creating the event_queue in the message broker, if not already created using QueueDeclare
       _channel!.QueueDeclare(queue: QUEUE_NAME, durable: false, exclusive: false, autoDelete: false, arguments: null);
-      Console.WriteLine($"[*] {_id} waiting for messages ...");
+      Console.WriteLine($"[R<--] {_id} waiting for messages ...");
 
       // Creating a instance that is used as the handler for messages from the event_queue queue
       var consumer = new EventingBasicConsumer(_channel); 
@@ -103,8 +113,8 @@ public class CompetingReceiver
       {
         var body = ea.Body.ToArray();
         var message = Encoding.UTF8.GetString(body);
-        Console.WriteLine($"[x] {_id} received {message}");
-        tcs.SetResult($"[{_id}]: {message}");
+        Console.WriteLine($"[R<--] {_id} received \"{message}\" from queue [{QUEUE_NAME}]");
+        tcs.SetResult(message);
       };
 
       // Registering the EventingBasicConsumer as a message consumer using the BasicConsume method
@@ -115,6 +125,7 @@ public class CompetingReceiver
       // we will return 
       using (cancellationToken.Register(() => tcs.SetCanceled()))
       {
+        Console.WriteLine($"[R<--] {_id} canceling");
         return await tcs.Task;
       }
     }
@@ -151,7 +162,7 @@ public class CompetingReceiver
         _channel?.Dispose();
         _connection.Close();
         _connection.Dispose();
-        Console.WriteLine($"[x] {_id} closed the connection.");
+        Console.WriteLine($"[R<--] {_id} closed connections.");
       }
     }
     catch (Exception ex)

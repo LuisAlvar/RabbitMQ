@@ -2,16 +2,19 @@
 namespace RabbitMQMessagePatterns.PointToPoint;
 
 /// <summary>
-/// Point-to-Point type of communcation
+/// Used to consume a single unprocessed message on a particular queue in a Point-to-Point type channel.
 /// </summary>
 public class CompetingReceiverDemo
 {
 
+  /// <summary>
+  /// We create two instances and invoke the receive of the two instance in separate threads
+  /// so that we have two subscribers for the same queue waiting for a message.
+  /// </summary>
+  /// <returns></returns>
   public static async Task RunParallelTasks()
   {
     /*
-      // Under the assumptation that there is only a single message within the queue
-      // where two thread are competing for this message. 
       DefaultExchangeSenderDemo.Main(args);
       Console.Write("Wait.... (main app thread sleeping) ... ");
       Task.Delay(2000).Wait();
@@ -33,7 +36,8 @@ public class CompetingReceiverDemo
 
       var completedTask = await Task.WhenAny(task1, task2);
       cts.Cancel();
-      Console.WriteLine(await completedTask);
+      var response = await completedTask;
+      Console.WriteLine($"[R<--] response from queue to process: {response}");
     }
     catch (Exception ex)
     {
@@ -41,7 +45,7 @@ public class CompetingReceiverDemo
     }
     finally
     {
-      Console.WriteLine("Destorying Receivers....");
+      Console.WriteLine("[R<--] Destorying Receivers....");
       receiver1.Destory();
       receiver2.Destory();
     }
@@ -50,7 +54,7 @@ public class CompetingReceiverDemo
   public static async Task MainFCFS(string[] args)
   {
     await RunParallelTasks();
-    Console.WriteLine("Both competing receivers have completed.");
+    Console.WriteLine("[R<--] Both competing receivers have completed.");
   }
 
 }

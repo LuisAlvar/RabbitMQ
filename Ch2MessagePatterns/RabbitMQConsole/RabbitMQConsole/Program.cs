@@ -5,11 +5,10 @@ using RabbitMQMessagePatterns.RequestReply;
 Console.WriteLine("RabbitMQConsole .... ");
 
 #region Point-to-Point 
-//DefaultExchangeSenderDemo.Main(args);
-//Console.Write("Wait.... (main app thread sleeping) ... ");
-//Task.Delay(2000).Wait();
-//Console.WriteLine("Done");
-//await CompetingReceiverDemo.MainFCFS(args);
+Console.Write("Waiting for sender.... (main app thread sleeping) ... ");
+Task.Delay(2000).Wait();
+Console.WriteLine("Done");
+await CompetingReceiverDemo.MainFCFS(args);
 #endregion
 
 #region pub-sub communication

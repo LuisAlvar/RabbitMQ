@@ -46,6 +46,10 @@ public class Sender
     _configuration = configuration;
   }
 
+  /// <summary>
+  /// Used to initialize the message sender
+  /// </summary>
+  /// <returns></returns>
   public bool Initialize()
   {
     try
